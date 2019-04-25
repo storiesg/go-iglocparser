@@ -29,7 +29,7 @@ type Place struct {
 	PrimaryAliasOnFb string  `json:"primary_alias_on_fb,omitempty"`
 	ProfilePicUrl    string  `json:"profile_pic_url,omitempty"`
 
-	Address          PlaceAddress
+	Address PlaceAddress
 
 	Country *Country `json:"country"`
 	City    *City    `json:"city"`
@@ -120,8 +120,10 @@ func getPlaceInfoFromPageBody(body []byte) (*Place, error) {
 	}
 
 	addr := PlaceAddress{}
-	if err := json.Unmarshal([]byte(res.AddressJson), &addr); err != nil {
-		return nil, merry.Wrap(err)
+	if res.AddressJson != "" {
+		if err := json.Unmarshal([]byte(res.AddressJson), &addr); err != nil {
+			return nil, merry.Wrap(err)
+		}
 	}
 
 	place := &res.Place
