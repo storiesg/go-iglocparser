@@ -47,6 +47,7 @@ type EffortParserTask struct {
 	Data     interface{}
 	attempts int
 
+	mu             sync.Mutex
 	utilizeClients map[*Client]struct{}
 
 	parser *EffortParser
@@ -66,6 +67,9 @@ func (self *EffortParserTask) Attempts() int {
 }
 
 func (self *EffortParserTask) Exceed() bool {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
 	return self.attempts <= 0 || len(self.utilizeClients) >= cap(self.parser.clients)
 }
 
@@ -99,6 +103,9 @@ func (self *EffortParserTask) Undone() bool {
 }
 
 func (self *EffortParserTask) Utilize(client *Client) {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
 	if self.utilizeClients == nil {
 		self.utilizeClients = make(map[*Client]struct{})
 	}
@@ -107,6 +114,9 @@ func (self *EffortParserTask) Utilize(client *Client) {
 }
 
 func (self *EffortParserTask) isUtilize(client *Client) bool {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
 	if self.utilizeClients == nil {
 		return false
 	}
