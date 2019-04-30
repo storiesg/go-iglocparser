@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"time"
 )
 
 type IgApiCredentials struct {
@@ -126,12 +127,12 @@ func CreateAuthorizedClient(client *Client) (*AuthorizedClient, error) {
 	return NewAuthorizedClient(client, creds), nil
 }
 
-func CreateDefaultAuthorizedClient(proxy *url.URL) (*AuthorizedClient, error) {
-	return CreateAuthorizedClient(NewClient(proxy))
+func CreateDefaultAuthorizedClient(proxy *url.URL, timeout time.Duration) (*AuthorizedClient, error) {
+	return CreateAuthorizedClient(NewClient(proxy, timeout))
 }
 
-func CreateDefaultIgApiClient(proxy *url.URL) (*IgApiClient, error) {
-	ac, err := CreateDefaultAuthorizedClient(proxy)
+func CreateDefaultIgApiClient(proxy *url.URL, timeout time.Duration) (*IgApiClient, error) {
+	ac, err := CreateDefaultAuthorizedClient(proxy, timeout)
 	if err != nil {
 		return nil, err
 	}

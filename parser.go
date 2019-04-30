@@ -100,22 +100,23 @@ func setReferrerToHeader(h http.Header, referrer string) {
 	h.Set("Referer", referrer)
 }
 
-func NewClient(proxy *url.URL) *Client {
+func NewClient(proxy *url.URL, timeout time.Duration) *Client {
 	c := &http.Client{
 		Jar: getInMemoryCookieJar(),
 	}
 
-	t := &http.Transport{
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   90 * time.Second,
-		ExpectContinueTimeout: 30 * time.Second,
+	transport := &http.Transport{
+		IdleConnTimeout:       timeout,
+		TLSHandshakeTimeout:   timeout,
+		ExpectContinueTimeout: timeout,
 	}
 
 	if proxy != nil {
-		t.Proxy = http.ProxyURL(proxy)
+		transport.Proxy = http.ProxyURL(proxy)
 	}
 
-	c.Transport = t
+	c.Transport = transport
+	c.Timeout = timeout
 
 	return &Client{
 		Client: c,
