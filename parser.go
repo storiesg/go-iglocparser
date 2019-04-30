@@ -252,7 +252,7 @@ func GetUserMediaPlacesIds(client *Client, username string, referrer string) (ma
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, merry.Errorf("invalid response status code: %s", resp.StatusCode)
+		return nil, merry.Errorf("invalid response status code: %v", resp.StatusCode)
 	}
 	defer resp.Body.Close()
 
