@@ -40,7 +40,7 @@ func (self *IgApiCitiesCursor) Next() ([]*City, error) {
 	}
 
 	if res.Status != "ok" {
-		return nil, merry.Errorf("invalid ig api locations response code: '%v'", string(body))
+		return nil, merry.WithUserMessage(ErrInvalidIgApiResponseCode, string(body))
 	}
 
 	var cities []*City

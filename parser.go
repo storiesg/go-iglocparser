@@ -17,6 +17,7 @@ import (
 
 var ErrInvalidResponseStatus = errors.New("invalid response status code")
 var ErrUndefinedLocation = errors.New("undefined location")
+var ErrInvalidIgApiResponseCode = errors.New("invalid ig api locations response code")
 
 var DefaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.81 Safari/537.36"
 
@@ -207,7 +208,7 @@ func (self *IgApiClient) do(link string, page int, referrer string) ([]byte, err
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, merry.Errorf("invalid response status code: code='%v'", resp.StatusCode)
+		return nil, merry.WithHTTPCode(ErrInvalidResponseStatus, resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -252,7 +253,7 @@ func GetUserMediaPlacesIds(client *Client, username string, referrer string) (ma
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, merry.Errorf("invalid response status code: %v", resp.StatusCode)
+		return nil, merry.WithHTTPCode(ErrInvalidResponseStatus, resp.StatusCode)
 	}
 	defer resp.Body.Close()
 

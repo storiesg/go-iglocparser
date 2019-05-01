@@ -1,42 +1,132 @@
 package iglocparser
 
 import (
+	"errors"
 	"sync"
 )
 
-type EffortParseFn func(client *Client, task *EffortParserTask)
+var ErrClientsExceed = errors.New("clients exceed")
+
+type EffortParseFn func(client *EffortParserClient, task *EffortParserTask) bool
+
+type EffortParserClient struct {
+	*Client
+	isInvalidated bool
+}
+
+func (self *EffortParserClient) Invalidate() {
+	self.isInvalidated = true
+}
 
 type EffortParser struct {
-	clients chan *Client
-	tasks   chan *EffortParserTask
-	done    chan struct{}
+	mu sync.Mutex
 
-	fn EffortParseFn
+	clients     chan *EffortParserClient
+	clientsLeft int
 
-	mu   sync.Mutex
-	left int
+	tasks     chan *EffortParserTask
+	tasksLeft int
+
+	done chan struct{}
+
+	executor EffortParseFn
+}
+
+func (self *EffortParser) isClientsExceed() bool {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
+	return self.clientsLeft <= 0
+}
+
+func (self *EffortParser) decreaseClients() int {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
+	self.clientsLeft--
+	return self.clientsLeft
+}
+
+func (self *EffortParser) isTasksExceed() bool {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
+	return self.tasksLeft <= 0
+}
+
+func (self *EffortParser) decreaseTasks() int {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
+	self.tasksLeft--
+	return self.tasksLeft
+}
+
+func (self *EffortParser) Run() error {
+	for {
+		select {
+		case <-self.done:
+			return nil
+		case task := <-self.tasks:
+			if self.isClientsExceed() {
+				return ErrClientsExceed
+			}
+
+			go self.executeTask(<-self.clients, task)
+		}
+	}
+}
+
+func (self *EffortParser) executeTask(client *EffortParserClient, task *EffortParserTask) {
+	if !task.IsCanUseClient(client) {
+		self.clients <- client
+		return
+	}
+
+	isDone := self.executor(client, task)
+	if client.isInvalidated {
+		self.decreaseClients()
+	} else {
+		self.clients <- client
+	}
+
+	if isDone {
+		self.tryToDone()
+	} else {
+		self.tasks <- task
+	}
+}
+
+func (self *EffortParser) tryToDone() {
+	if self.decreaseTasks() <= 0 {
+		close(self.done)
+	}
 }
 
 func NewEffortParser(clients []*Client, tasks []interface{}, attempts int, fn EffortParseFn) *EffortParser {
 	parser := &EffortParser{
-		clients: make(chan *Client, len(clients)),
-		tasks:   make(chan *EffortParserTask, len(tasks)),
-		done:    make(chan struct{}),
+		clients:     make(chan *EffortParserClient, len(clients)),
+		clientsLeft: len(clients),
 
-		fn: fn,
+		tasks:     make(chan *EffortParserTask, len(tasks)),
+		tasksLeft: len(tasks),
 
-		left: len(tasks),
+		done: make(chan struct{}),
+
+		executor: fn,
 	}
 
 	for _, client := range clients {
-		parser.clients <- client
+		parser.clients <- &EffortParserClient{Client: client}
 	}
 
 	for _, task := range tasks {
 		parser.tasks <- &EffortParserTask{
-			Data:     task,
-			attempts: attempts,
-			parser:   parser,
+			Data: task,
+
+			attemptsLeft: attempts,
+
+			parser: parser,
 		}
 	}
 
@@ -44,11 +134,11 @@ func NewEffortParser(clients []*Client, tasks []interface{}, attempts int, fn Ef
 }
 
 type EffortParserTask struct {
-	Data     interface{}
-	attempts int
+	Data interface{}
 
 	mu             sync.Mutex
-	utilizeClients map[*Client]struct{}
+	attemptsLeft   int
+	utilizeClients map[*EffortParserClient]struct{}
 
 	parser *EffortParser
 
@@ -57,101 +147,38 @@ type EffortParserTask struct {
 
 func NewEffortParserTask(data interface{}, attempts int) *EffortParserTask {
 	return &EffortParserTask{
-		Data:     data,
-		attempts: attempts,
+		Data: data,
+
+		attemptsLeft: attempts,
 	}
 }
 
-func (self *EffortParserTask) Attempts() int {
-	return self.attempts
+func (self *EffortParserTask) AttemptsLeft() int {
+	return self.attemptsLeft
 }
 
-func (self *EffortParserTask) Exceed() bool {
-	self.mu.Lock()
-	defer self.mu.Unlock()
-
-	return self.attempts <= 0 || len(self.utilizeClients) >= cap(self.parser.clients)
+func (self *EffortParserTask) AttemptsDecrease() int {
+	self.attemptsLeft--
+	return self.attemptsLeft
 }
 
-// помечает задачку как выполненную и удаляет из пула
-func (self *EffortParserTask) Done() {
-	if self.isDone {
-		return
-	}
-
-	self.isDone = true
-	self.parser.tryToDone()
+func (self *EffortParserTask) IsValid() bool {
+	return self.attemptsLeft <= 0 || len(self.utilizeClients) >= cap(self.parser.clients)
 }
 
-// проверяет если остались попытки и использованы ещё не все клиенты
-// то помечает задачу как невыполненную и возвращает в пул
-// результат работы обозначает вернулась ли задача в пул или была удалена из пула
-func (self *EffortParserTask) Undone() bool {
-	if self.isDone {
-		return false
-	}
-
-	if self.Exceed() {
-		self.isDone = true
-		self.parser.tryToDone()
-
-		return false
-	}
-
-	self.parser.tasks <- self
-	return true
-}
-
-func (self *EffortParserTask) Utilize(client *Client) {
-	self.mu.Lock()
-	defer self.mu.Unlock()
-
+func (self *EffortParserTask) DontUseClient(client *EffortParserClient) {
 	if self.utilizeClients == nil {
-		self.utilizeClients = make(map[*Client]struct{})
+		self.utilizeClients = make(map[*EffortParserClient]struct{})
 	}
 
 	self.utilizeClients[client] = struct{}{}
 }
 
-func (self *EffortParserTask) isUtilize(client *Client) bool {
-	self.mu.Lock()
-	defer self.mu.Unlock()
-
+func (self *EffortParserTask) IsCanUseClient(client *EffortParserClient) bool {
 	if self.utilizeClients == nil {
-		return false
+		return true
 	}
 
 	_, ok := self.utilizeClients[client]
-	return ok
-}
-
-func (self *EffortParser) Run() {
-	for {
-		select {
-		case <-self.done:
-			return
-		case task := <-self.tasks:
-			go self.do(<-self.clients, task)
-		}
-	}
-}
-
-func (self *EffortParser) do(client *Client, task *EffortParserTask) {
-	defer func() { self.clients <- client }()
-	if task.isUtilize(client) {
-		return
-	}
-
-	self.fn(client, task)
-
-	if !task.isDone {
-		task.Utilize(client)
-	}
-}
-
-func (self *EffortParser) tryToDone() {
-	self.left--
-	if self.left <= 0 {
-		close(self.done)
-	}
+	return !ok
 }

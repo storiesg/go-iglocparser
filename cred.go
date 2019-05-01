@@ -41,7 +41,7 @@ func ParseIgApiCredentialsFromPage(client *Client, link string) (*IgApiCredentia
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, merry.Errorf("invalid response status code: code='%v'", res.StatusCode)
+		return nil, merry.WithHTTPCode(ErrInvalidResponseStatus, res.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(res.Body)

@@ -33,7 +33,7 @@ func (self *IgApiCountriesCursor) Next() ([]*Country, error) {
 	}
 
 	if res.Status != "ok" {
-		return nil, merry.Errorf("invalid ig api locations response code: '%v'", string(body))
+		return nil, merry.WithUserMessage(ErrInvalidIgApiResponseCode, string(body))
 	}
 
 	self.setNextPage(res.NextPage)
