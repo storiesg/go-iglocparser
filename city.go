@@ -2,6 +2,7 @@ package iglocparser
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/ansel1/merry"
 )
 
@@ -9,6 +10,10 @@ type City struct {
 	Id   string `json:"id"`
 	Name string `json:"name"`
 	Slug string `json:"slug"`
+}
+
+func (self *City) String() string {
+	return fmt.Sprintf("[id=%v; name=%v; slug=%v]", self.Id, self.Name, self.Slug)
 }
 
 type igApiCitiesResponse struct {
@@ -25,11 +30,11 @@ type IgApiCitiesCursor struct {
 	country *Country
 }
 
-func (self *IgApiCitiesCursor) Next() ([]*City, error) {
-	link := getIgLinkWithLeadingSlash(IgExploreLocationsPath, self.country.Id)
-	referrer := getIgLinkWithLeadingSlash(IgExploreLocationsPath, self.country.Id, self.country.Slug)
+func (self *IgApiCitiesCursor) Next(client *IgApiClient) ([]*City, error) {
+	link := GetIgLinkWithLeadingSlash(IgExploreLocationsPath, self.country.Id)
+	referrer := GetIgLinkWithLeadingSlash(IgExploreLocationsPath, self.country.Id, self.country.Slug)
 
-	body, err := self.client.do(link, self.nextPage, referrer)
+	body, err := client.do(link, self.nextPage, referrer)
 	if err != nil {
 		return nil, merry.Wrap(err)
 	}
@@ -52,10 +57,9 @@ func (self *IgApiCitiesCursor) Next() ([]*City, error) {
 	return cities, nil
 }
 
-func GetCitiesCursor(client *IgApiClient, country *Country) *IgApiCitiesCursor {
+func GetCitiesCursor(country *Country) *IgApiCitiesCursor {
 	return &IgApiCitiesCursor{
 		igApiCursor: &igApiCursor{
-			client:      client,
 			nextPage:    1,
 			hasNextPage: true,
 		},
@@ -66,11 +70,11 @@ func GetCitiesCursor(client *IgApiClient, country *Country) *IgApiCitiesCursor {
 func ParseAllCities(client *IgApiClient, country *Country, callback func(page int, cities []*City)) ([]*City, error) {
 	var cities []*City
 
-	cursor := GetCitiesCursor(client, country)
+	cursor := GetCitiesCursor(country)
 
 	for cursor.Has() {
 		page := cursor.nextPage
-		list, err := cursor.Next()
+		list, err := cursor.Next(client)
 		if err != nil {
 			return nil, merry.Wrap(err)
 		}

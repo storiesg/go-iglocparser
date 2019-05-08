@@ -36,7 +36,7 @@ type Place struct {
 }
 
 func ParsePlace(client *Client, id string, referrer string) (*Place, error) {
-	link := getIgLinkWithLeadingSlash(IgExploreLocationsPath, id)
+	link := GetIgLinkWithLeadingSlash(IgExploreLocationsPath, id)
 
 	req, err := http.NewRequest(http.MethodGet, link, nil)
 	if err != nil {

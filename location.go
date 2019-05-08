@@ -2,6 +2,7 @@ package iglocparser
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/ansel1/merry"
 )
 
@@ -9,6 +10,10 @@ type Location struct {
 	Id   string
 	Name string
 	Slug string
+}
+
+func (self *Location) String() string {
+	return fmt.Sprintf("[id=%v; name=%v; slug=%v]", self.Id, self.Name, self.Slug)
 }
 
 type igApiLocationsResponse struct {
@@ -30,13 +35,13 @@ func (self *IgApiLocationsCursor) Has() bool {
 	return self.hasNextPage
 }
 
-func (self *IgApiLocationsCursor) Next() ([]*Location, error) {
-	link := getIgLinkWithLeadingSlash(IgExploreLocationsPath, self.city.Id)
-	referrer := getIgLinkWithLeadingSlash(IgExploreLocationsPath, self.city.Id, self.city.Slug)
+func (self *IgApiLocationsCursor) Next(client *IgApiClient) ([]*Location, error) {
+	link := GetIgLinkWithLeadingSlash(IgExploreLocationsPath, self.city.Id)
+	referrer := GetIgLinkWithLeadingSlash(IgExploreLocationsPath, self.city.Id, self.city.Slug)
 
 	var locations []*Location
 
-	body, err := self.client.do(link, self.nextPage, referrer)
+	body, err := client.do(link, self.nextPage, referrer)
 	if err != nil {
 		return nil, merry.Wrap(err)
 	}
@@ -58,10 +63,9 @@ func (self *IgApiLocationsCursor) Next() ([]*Location, error) {
 	return locations, nil
 }
 
-func GetLocationsCursors(client *IgApiClient, city *City) *IgApiLocationsCursor {
+func GetLocationsCursors(city *City) *IgApiLocationsCursor {
 	return &IgApiLocationsCursor{
 		igApiCursor: &igApiCursor{
-			client:      client,
 			nextPage:    1,
 			hasNextPage: true,
 		},
@@ -72,11 +76,11 @@ func GetLocationsCursors(client *IgApiClient, city *City) *IgApiLocationsCursor 
 func ParseAllLocations(client *IgApiClient, city *City, callback func(page int, locations []*Location)) ([]*Location, error) {
 	var locations []*Location
 
-	cursor := GetLocationsCursors(client, city)
+	cursor := GetLocationsCursors(city)
 
 	for cursor.Has() {
 		page := cursor.nextPage
-		list, err := cursor.Next()
+		list, err := cursor.Next(client)
 		if err != nil {
 			return nil, merry.Wrap(err)
 		}

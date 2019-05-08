@@ -67,7 +67,7 @@ func ParseIgApiCredentialsFromPage(client *Client, link string) (*IgApiCredentia
 	}
 	igAppIdScriptLink := string(igAppIdScriptLinkMatches[1])
 
-	igAppId, err := parseIgAppIdFromScriptFile(client, getIgLink(igAppIdScriptLink), link)
+	igAppId, err := parseIgAppIdFromScriptFile(client, GetIgLink(igAppIdScriptLink), link)
 	if err != nil {
 		return nil, merry.Wrap(err)
 	}
@@ -81,7 +81,7 @@ func ParseIgApiCredentialsFromPage(client *Client, link string) (*IgApiCredentia
 
 var regexCSRFTokenFinder = regexp.MustCompile(`csrf_token":"(\w+?)"`)
 var regexInstagramAjaxFinder = regexp.MustCompile(`rollout_hash":"(\w+?)"`)
-var regexIgAppIdScriptLinkFinder = regexp.MustCompile(`"(/.+?ConsumerCommons\.js.+?)"`)
+var regexIgAppIdScriptLinkFinder = regexp.MustCompile(`"(/.+?ConsumerLibCommons\.js.+?)"`)
 
 var regexIgAppIdFinder = regexp.MustCompile(`e\.instagramWebDesktopFBAppId='(\w+?)'`)
 
@@ -119,7 +119,7 @@ func parseIgAppIdFromScriptFile(client *Client, link string, referer string) (st
 }
 
 func CreateAuthorizedClient(client *Client) (*AuthorizedClient, error) {
-	creds, err := ParseIgApiCredentialsFromPage(client, getIgLinkWithLeadingSlash(IgExploreLocationsPath))
+	creds, err := ParseIgApiCredentialsFromPage(client, GetIgLinkWithLeadingSlash(IgExploreLocationsPath))
 	if err != nil {
 		return nil, err
 	}

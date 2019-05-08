@@ -9,7 +9,6 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"path"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -28,12 +27,12 @@ func init() {
 	rand.Seed(time.Now().Unix())
 }
 
-func getIgLink(paths ...string) string {
+func GetIgLink(paths ...string) string {
 	return IgHost + "/" + strings.Trim(path.Join(paths...), "/")
 }
 
-func getIgLinkWithLeadingSlash(paths ...string) string {
-	return getIgLink(paths...) + "/"
+func GetIgLinkWithLeadingSlash(paths ...string) string {
+	return GetIgLink(paths...) + "/"
 }
 
 func getInMemoryCookieJar() *cookiejar.Jar {
@@ -135,7 +134,6 @@ func (self *AuthorizedClient) SetHeaders(h http.Header, referrer string) {
 }
 
 type igApiCursor struct {
-	client      *IgApiClient
 	nextPage    int
 	hasNextPage bool
 }
@@ -168,6 +166,15 @@ func NewIgApiClient(client *AuthorizedClient) *IgApiClient {
 	return &IgApiClient{
 		client: client,
 	}
+}
+
+func CreateIgApiClient(client *Client) (*IgApiClient, error) {
+	ac, err := CreateAuthorizedClient(client)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewIgApiClient(ac), nil
 }
 
 func (self *IgApiClient) request(link string, page int, referer string) (*http.Response, error) {
@@ -242,33 +249,4 @@ func (self *IgApiClientRotator) Next() *IgApiClient {
 
 func (self *IgApiClientRotator) Len() int {
 	return len(self.clients)
-}
-
-var regexUserLocations = regexp.MustCompile(`"location":{"id":"(\d+)"`)
-
-func GetUserMediaPlacesIds(client *Client, username string, referrer string) (map[string]int, error) {
-	resp, err := client.GetWithHeaders(getIgLinkWithLeadingSlash(username), referrer)
-	if err != nil {
-		return nil, merry.Wrap(err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, merry.WithHTTPCode(ErrInvalidResponseStatus, resp.StatusCode)
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, merry.Wrap(err)
-	}
-
-	matchedLocations := regexUserLocations.FindAllStringSubmatch(string(body), -1)
-
-	result := make(map[string]int)
-	for _, match := range matchedLocations {
-		id := match[1]
-		result[id] += 1
-	}
-
-	return result, nil
 }
