@@ -88,6 +88,10 @@ func (self *Client) GetWithHeaders(url string, referrer string) (resp *http.Resp
 	if err != nil {
 		return nil, err
 	}
+	return self.DoWithHeaders(req, referrer)
+}
+
+func (self *Client) DoWithHeaders(req *http.Request, referrer string) (resp *http.Response, err error) {
 	self.SetHeaders(req.Header, referrer)
 	return self.Do(req)
 }
